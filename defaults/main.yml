@@ -1,0 +1,25 @@
+---
+
+# Which local user is used to manage the postgresql services, files ect..
+pg_replication_database_user: postgres
+pg_replication_database_group: postgres
+
+# Options are logical and log_shipping_with_streaming
+pg_replication_type: log_shipping_with_streaming
+
+pg_replication_backup: true
+pg_replication_backup_loc: /tmp
+
+# Details of the user and database that will be replicated
+pg_replication_db: postgres 
+pg_replication_user: repuser
+
+# Used when log shipping replication is used.
+pg_replication_postgresql_path: /var/lib/pgsql
+pg_replication_postgresql_data_dir: data
+pg_replication_export_path: /tmp
+pg_replication_local_export_path: /tmp
+pg_replication_export_file: postgresql_data.tar.gz
+
+pg_replication_trigger_file: '/tmp/postgresql.trigger.5432'
+

@@ -1,0 +1,79 @@
+---
+- name: "Remove any recovery.done files."
+  file:
+    state: absent
+    path: "{{pg_replication_postgresql_path}}/{{pg_replication_postgresql_data_dir}}/recovery.done"
+
+- name: "Configure secondary database systems to speak to new primary"
+  become_user: "{{pg_replication_database_user}}"
+  block:
+    - name: "Dump the existing database {{ pg_replication_db }} to a file (with compression)"
+      postgresql_db:
+        name: "{{ pg_replication_db }}"
+        state: dump
+        target: "{{ pg_replication_backup_loc }}/full-{{ pg_replication_db }}-{{ansible_date_time.date}}.sql.gz"
+      when:
+        - pg_replication_backup
+      ignore_errors: true
+  when:
+    - 'pg_replication_type == "log_shipping_with_streaming"'
+    - "inventory_hostname != pg_replication_master"
+
+- name: "Make sure postgresql service is stopped on secondary systems"
+  become: true
+  systemd:
+    state: stopped
+    name: postgresql
+  when:
+    - 'pg_replication_type == "log_shipping_with_streaming"'
+    - "inventory_hostname != pg_replication_master"
+
+- name: "Configure new primary database system to be primary"
+  become_user: "{{pg_replication_database_user}}"
+  block:
+    - name: "Make sure postgresql service is running"
+      systemd:
+        state: started
+        name: postgresql
+
+    - name: "Create trigger file to start database promotion."
+      file:
+        state: touch
+        path: "{{pg_replication_trigger_file}}" 
+
+    - name: "Give Secondary database server one minute to promote"
+      pause:
+        minutes: 1
+
+  when:
+    - 'pg_replication_type == "log_shipping_with_streaming"'
+    - "inventory_hostname == pg_replication_master"
+
+
+- name: "Stop keepalived if using for ip failover."
+  become: true
+  systemd:
+    state: stopped
+    name: keepalived
+  when:
+    - "inventory_hostname != pg_replication_master"
+  ignore_errors: true
+
+- name: "Start keepalived if using for ip failover."
+  become: true
+  systemd:
+    state: started
+    name: keepalived
+  when:
+    - "inventory_hostname == pg_replication_master"
+  ignore_errors: true
+
+- name: "Make sure postgresql services are started on secondary systems"
+  become: true
+  systemd:
+    state: started
+    name: postgresql
+  when:
+    - 'pg_replication_type == "log_shipping_with_streaming"'
+    - "inventory_hostname != pg_replication_master"
+

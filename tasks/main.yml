@@ -1,0 +1,14 @@
+---
+
+- name: "Failover over postgresql to new primary."
+  include_tasks: failoverdb.yml
+
+#  when:
+#    - "inventory_hostname == pg_replication_master"
+#
+#
+#- name: "Configure replication on secondary database servers"
+#  include_tasks: secondarydb.yml
+#  when:
+#    - "inventory_hostname != pg_replication_master"
+
