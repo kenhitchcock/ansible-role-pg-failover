@@ -1,4 +1,6 @@
 ---
+# Postgresql version that will be used
+pg_replication_postgresql_version: 13
 
 # Which local user is used to manage the postgresql services, files ect..
 pg_replication_database_user: postgres

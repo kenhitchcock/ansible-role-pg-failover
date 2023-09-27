@@ -1,6 +1,6 @@
 ---
 - name: "Remove any recovery.done files."
-  file:
+  ansible.builtin.file:
     state: absent
     path: "{{pg_replication_postgresql_path}}/{{pg_replication_postgresql_data_dir}}/recovery.done"
 
@@ -8,7 +8,7 @@
   become_user: "{{pg_replication_database_user}}"
   block:
     - name: "Dump the existing database {{ pg_replication_db }} to a file (with compression)"
-      postgresql_db:
+      community.postgresql.postgresql_db:
         name: "{{ pg_replication_db }}"
         state: dump
         target: "{{ pg_replication_backup_loc }}/full-{{ pg_replication_db }}-{{ansible_date_time.date}}.sql.gz"
@@ -21,7 +21,7 @@
 
 - name: "Make sure postgresql service is stopped on secondary systems"
   become: true
-  systemd:
+  ansible.builtin.systemd:
     state: stopped
     name: postgresql
   when:
@@ -32,45 +32,62 @@
   become_user: "{{pg_replication_database_user}}"
   block:
     - name: "Make sure postgresql service is running"
-      systemd:
+      ansible.builtin.systemd:
         state: started
         name: postgresql
 
     - name: "Create trigger file to start database promotion."
-      file:
+      ansible.builtin.file:
         state: touch
         path: "{{pg_replication_trigger_file}}" 
+      when:
+        - pg_replication_postgresql_version | int <= 11 
+
+    - name: "Promote new primary if Postgresql 12 or greater."
+      ansible.builtin.shell: "/usr/bin/pg_ctl promote -D {{pg_replication_postgresql_path}}/{{pg_replication_postgresql_data_dir}}"
+      register: pg_promote_output
+      when:
+        - pg_replication_postgresql_version | int >= 12
+
+    - name: "Promotion output"
+      debug:
+        msg: "{{pg_replication_postgresql_version}}"
+      when:
+        - pg_replication_postgresql_version | int >= 12
 
     - name: "Give Secondary database server one minute to promote"
-      pause:
+      ansible.builtin.pause:
         minutes: 1
 
   when:
     - 'pg_replication_type == "log_shipping_with_streaming"'
     - "inventory_hostname == pg_replication_master"
 
-
-- name: "Stop keepalived if using for ip failover."
-  become: true
-  systemd:
-    state: stopped
-    name: keepalived
-  when:
-    - "inventory_hostname != pg_replication_master"
-  ignore_errors: true
-
-- name: "Start keepalived if using for ip failover."
-  become: true
-  systemd:
-    state: started
-    name: keepalived
-  when:
-    - "inventory_hostname == pg_replication_master"
-  ignore_errors: true
+# #####################################################
+# Need to investigate if this is useful or not.
+# #####################################################
+#- name: "Stop keepalived if using for ip failover."
+#  become: true
+#  ansible.builtin.systemd:
+#    state: stopped
+#    name: keepalived
+#  when:
+#    - "inventory_hostname != pg_replication_master"
+#  ignore_errors: true
+#
+#- name: "Start keepalived if using for ip failover."
+#  become: true
+#  ansible.builtin.systemd:
+#    state: started
+#    name: keepalived
+#  when:
+#    - "inventory_hostname == pg_replication_master"
+#  ignore_errors: true
+# #####################################################
 
 - name: "Make sure postgresql services are started on secondary systems"
   become: true
-  systemd:
+  ansible.builtin.systemd:
     state: started
     name: postgresql
   when:
